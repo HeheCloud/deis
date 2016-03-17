@@ -425,6 +425,8 @@ func Uninstall(targets []string, b backend.Backend) error {
 			return UninstallPlatform(b, false)
 		case StatelessPlatformCommand:
 			return UninstallPlatform(b, true)
+		case SinglePlatformCommand:
+			return UninstallPlatformSingle(b)
 		}
 	}
 
