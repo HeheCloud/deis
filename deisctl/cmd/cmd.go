@@ -23,6 +23,7 @@ const (
 	PlatformCommand string = "platform"
 	// StatelessPlatformCommand is shorthand for the components except store-* and database.
 	StatelessPlatformCommand string = "stateless-platform"
+	SinglePlatformCommand string = "single-platform"
 	// DefaultRouterMeshSize defines the default number of routers to be loaded when installing the platform.
 	DefaultRouterMeshSize uint8 = 3
 )
@@ -62,7 +63,8 @@ func Scale(targets []string, b backend.Backend) error {
 			return err
 		}
 		// the router, registry, and store-gateway are the only component that can scale at the moment
-		if !strings.Contains(component, "router") && !strings.Contains(component, "registry") && !strings.Contains(component, "store-gateway") {
+		// if !strings.Contains(component, "router") && !strings.Contains(component, "registry") && !strings.Contains(component, "store-gateway") {
+		if !strings.Contains(component, "store-gateway") {
 			return fmt.Errorf("cannot scale %s component", component)
 		}
 		b.Scale(component, num, &wg, Stdout, Stderr)
@@ -81,6 +83,8 @@ func Start(targets []string, b backend.Backend) error {
 			return StartPlatform(b, false)
 		case StatelessPlatformCommand:
 			return StartPlatform(b, true)
+		case SinglePlatformCommand:
+			return StartPlatformSingle(b)
 		}
 	}
 	var wg sync.WaitGroup
@@ -114,6 +118,45 @@ deisctl config platform set sshPrivateKey=<path-to-key>
 `)
 	}
 	return nil
+}
+
+func startSingleServices(b backend.Backend, wg *sync.WaitGroup, out, err io.Writer) {
+	// Wait for groups to come up.
+	// If we're running in stateless mode, we start only a subset of services.
+	// start logging subsystem first to collect logs from other components
+	fmt.Fprintln(out, "Logging subsystem...")
+	b.Start([]string{"logger"}, wg, out, err)
+	wg.Wait()
+	b.Start([]string{"logspout"}, wg, out, err)
+	wg.Wait()
+
+	// Start these in parallel. This section can probably be removed now.
+	var bgwg sync.WaitGroup
+	var trash bytes.Buffer
+	batch := []string{
+		"database", "registry", "controller", "builder",
+		"publisher", "router",
+	}
+
+	b.Start(batch, &bgwg, &trash, &trash)
+	// End background stuff.
+
+	fmt.Fprintln(Stdout, "Control plane...")
+	batch = []string{"database", "registry", "controller"}
+
+	b.Start(batch, wg, out, err)
+	wg.Wait()
+
+	b.Start([]string{"builder"}, wg, out, err)
+	wg.Wait()
+
+	fmt.Fprintln(out, "Data plane...")
+	b.Start([]string{"publisher"}, wg, out, err)
+	wg.Wait()
+
+	fmt.Fprintln(out, "Router mesh...")
+	b.Start([]string{"router"}, wg, out, err)
+	wg.Wait()
 }
 
 func startDefaultServices(b backend.Backend, stateless bool, wg *sync.WaitGroup, out, err io.Writer) {
@@ -186,6 +229,8 @@ func Stop(targets []string, b backend.Backend) error {
 			return StopPlatform(b, false)
 		case StatelessPlatformCommand:
 			return StopPlatform(b, true)
+		case SinglePlatformCommand:
+			return StopPlatformSingle(b)
 		}
 	}
 
@@ -195,6 +240,25 @@ func Stop(targets []string, b backend.Backend) error {
 	wg.Wait()
 
 	return nil
+}
+
+func stopSingleServices(b backend.Backend, wg *sync.WaitGroup, out, err io.Writer) {
+
+	fmt.Fprintln(out, "Router mesh...")
+	b.Stop([]string{"router"}, wg, out, err)
+	wg.Wait()
+
+	fmt.Fprintln(out, "Data plane...")
+	b.Stop([]string{"publisher"}, wg, out, err)
+	wg.Wait()
+
+	fmt.Fprintln(out, "Control plane...")
+	b.Stop([]string{"controller", "builder", "database", "registry"}, wg, out, err)
+	wg.Wait()
+
+	fmt.Fprintln(out, "Logging subsystem...")
+	b.Stop([]string{"logger", "logspout"}, wg, out, err)
+	wg.Wait()
 }
 
 func stopDefaultServices(b backend.Backend, stateless bool, wg *sync.WaitGroup, out, err io.Writer) {
@@ -281,6 +345,8 @@ func Install(targets []string, b backend.Backend, cb config.Backend, checkKeys f
 			return InstallPlatform(b, cb, checkKeys, false)
 		case StatelessPlatformCommand:
 			return InstallPlatform(b, cb, checkKeys, true)
+		case SinglePlatformCommand:
+			return InstallPlatformSingle(b, cb, checkKeys, true)
 		}
 	}
 	var wg sync.WaitGroup
@@ -290,6 +356,26 @@ func Install(targets []string, b backend.Backend, cb config.Backend, checkKeys f
 	wg.Wait()
 
 	return nil
+}
+
+func installSingleServices(b backend.Backend, wg *sync.WaitGroup, out, err io.Writer) {
+
+	fmt.Fprintln(out, "Logging subsystem...")
+	b.Create([]string{"logger", "logspout"}, wg, out, err)
+	wg.Wait()
+
+	fmt.Fprintln(out, "Control plane...")
+	b.Create([]string{"database", "registry", "controller", "builder"}, wg, out, err)
+	wg.Wait()
+
+	fmt.Fprintln(out, "Data plane...")
+	b.Create([]string{"publisher"}, wg, out, err)
+	wg.Wait()
+
+	fmt.Fprintln(out, "Router mesh...")
+	b.Create([]string{"router"}, wg, out, err)
+	wg.Wait()
+
 }
 
 func installDefaultServices(b backend.Backend, stateless bool, wg *sync.WaitGroup, out, err io.Writer) {
@@ -346,6 +432,27 @@ func Uninstall(targets []string, b backend.Backend) error {
 
 	// uninstall the specific target
 	b.Destroy(targets, &wg, Stdout, Stderr)
+	wg.Wait()
+
+	return nil
+}
+
+func uninstallSingleServices(b backend.Backend, wg *sync.WaitGroup, out, err io.Writer) error {
+
+	fmt.Fprintln(out, "Router mesh...")
+	b.Destroy([]string{"router"}, wg, out, err)
+	wg.Wait()
+
+	fmt.Fprintln(out, "Data plane...")
+	b.Destroy([]string{"publisher"}, wg, out, err)
+	wg.Wait()
+
+	fmt.Fprintln(out, "Control plane...")
+	b.Destroy([]string{"controller", "builder", "database", "registry"}, wg, out, err)
+	wg.Wait()
+
+	fmt.Fprintln(out, "Logging subsystem...")
+	b.Destroy([]string{"logger", "logspout"}, wg, out, err)
 	wg.Wait()
 
 	return nil

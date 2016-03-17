@@ -42,6 +42,20 @@ func InstallPlatform(b backend.Backend, cb config.Backend, checkKeys func(config
 	return nil
 }
 
+func StartPlatformSingle(b backend.Backend) error {
+	var wg sync.WaitGroup
+
+	io.WriteString(Stdout, prettyprint.DeisIfy("Starting Deis..."))
+
+	startSingleServices(b, &wg, Stdout, Stderr)
+
+	wg.Wait()
+
+	fmt.Fprintln(Stdout, "Done.\n ")
+	fmt.Fprintln(Stdout, "Please set up an administrative account. See 'deis help register'")
+	return nil
+}
+
 // StartPlatform activates all components.
 func StartPlatform(b backend.Backend, stateless bool) error {
 
@@ -55,6 +69,21 @@ func StartPlatform(b backend.Backend, stateless bool) error {
 
 	fmt.Fprintln(Stdout, "Done.\n ")
 	fmt.Fprintln(Stdout, "Please set up an administrative account. See 'deis help register'")
+	return nil
+}
+
+func StopPlatformSingle(b backend.Backend) error {
+
+	var wg sync.WaitGroup
+
+	io.WriteString(Stdout, prettyprint.DeisIfy("Stopping Deis..."))
+
+	stopSingleServices(b, &wg, Stdout, Stderr)
+
+	wg.Wait()
+
+	fmt.Fprintln(Stdout, "Done.\n ")
+	fmt.Fprintln(Stdout, "Please run `deisctl start single-platform` to restart Deis.")
 	return nil
 }
 
@@ -75,6 +104,21 @@ func StopPlatform(b backend.Backend, stateless bool) error {
 	} else {
 		fmt.Fprintln(Stdout, "Please run `deisctl start platform` to restart Deis.")
 	}
+	return nil
+}
+
+
+func UninstallPlatformSingle(b backend.Backend) error {
+
+	var wg sync.WaitGroup
+
+	io.WriteString(Stdout, prettyprint.DeisIfy("Uninstalling Deis..."))
+
+	uninstallSingleServices(b, &wg, Stdout, Stderr)
+
+	wg.Wait()
+
+	fmt.Fprintln(Stdout, "Done.")
 	return nil
 }
 
