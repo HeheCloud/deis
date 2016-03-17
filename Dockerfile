@@ -11,5 +11,3 @@ WORKDIR /go/src/github.com/deis/deis
 ADD . /go/src/github.com/deis/deis
 RUN go get github.com/tools/godep
 RUN make -C deisctl installer
-# RUN curl -H "Content-Type: application/octet-stream" -T "client/deis-cli-1.13.0-dev-linux-amd64.run" "http://sinacloud.net/hehe/deiscli/deis-cli-1.13.0-dev-linux-amd64.run?KID=sina,re5k9pAuLShG6tVcXOFr&Expires=3629120410&ssig=vIcXLO4q35" -v
-# CMD ["/go/src/github.com/tutumcloud/tutum-agent"]
