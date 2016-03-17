@@ -1,4 +1,4 @@
-FROM golang:1.5.3
+FROM daocloud.io/library/golang:1.5
 
 # Install FPM for packaging
 RUN apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install -qy file bzip2
