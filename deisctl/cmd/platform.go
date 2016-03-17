@@ -10,6 +10,26 @@ import (
 	"github.com/deis/deis/pkg/prettyprint"
 )
 
+func InstallPlatformSingle(b backend.Backend, cb config.Backend, checkKeys func(config.Backend) error) error {
+
+	if err := checkKeys(cb); err != nil {
+		return err
+	}
+
+	var wg sync.WaitGroup
+
+	io.WriteString(Stdout, prettyprint.DeisIfy("Installing Deis..."))
+
+	installSingleServices(b, &wg, Stdout, Stderr)
+
+	wg.Wait()
+
+	fmt.Fprintln(Stdout, "Done.")
+	fmt.Fprintln(Stdout, "")
+	fmt.Fprintln(Stdout, "Please run `deisctl start single-platform` to boot up Deis.")
+	return nil
+}
+
 // InstallPlatform loads all components' definitions from local unit files.
 // After InstallPlatform, all components will be available for StartPlatform.
 func InstallPlatform(b backend.Backend, cb config.Backend, checkKeys func(config.Backend) error, stateless bool) error {

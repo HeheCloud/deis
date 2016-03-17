@@ -346,7 +346,7 @@ func Install(targets []string, b backend.Backend, cb config.Backend, checkKeys f
 		case StatelessPlatformCommand:
 			return InstallPlatform(b, cb, checkKeys, true)
 		case SinglePlatformCommand:
-			return InstallPlatformSingle(b, cb, checkKeys, true)
+			return InstallPlatformSingle(b, cb, checkKeys)
 		}
 	}
 	var wg sync.WaitGroup
